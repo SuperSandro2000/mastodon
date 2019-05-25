@@ -1,4 +1,4 @@
-FROM ubuntu:18.04 as build-dep
+FROM ubuntu:19.04 as build-dep
 
 # Use bash for the shell
 SHELL ["bash", "-c"]
@@ -10,26 +10,11 @@ RUN	echo "Etc/UTC" > /etc/localtime && \
 	wget -O - https://deb.nodesource.com/setup_8.x | bash - && \
 	apt install -y nodejs npm
 
-# Install jemalloc
-ENV JE_VER="5.1.0"
-RUN apt update && \
-	apt -y install autoconf && \
-	cd ~ && \
-	wget https://github.com/jemalloc/jemalloc/archive/$JE_VER.tar.gz && \
-	tar xf $JE_VER.tar.gz && \
-	cd jemalloc-$JE_VER && \
-	./autogen.sh && \
-	./configure --prefix=/opt/jemalloc && \
-	make -j$(nproc) > /dev/null && \
-	make install_bin install_include install_lib
-
 # Install ruby
 ENV RUBY_VER="2.6.1"
-ENV CPPFLAGS="-I/opt/jemalloc/include"
-ENV LDFLAGS="-L/opt/jemalloc/lib/"
 RUN apt update && \
 	apt -y install build-essential \
-		bison libyaml-dev libgdbm-dev libreadline-dev \
+		bison libyaml-dev libgdbm-dev libreadline-dev libjemalloc-dev \
 		libncurses5-dev libffi-dev zlib1g-dev libssl-dev && \
 	cd ~ && \
 	wget https://cache.ruby-lang.org/pub/ruby/${RUBY_VER%.*}/ruby-$RUBY_VER.tar.gz && \
@@ -39,7 +24,6 @@ RUN apt update && \
 	  --with-jemalloc \
 	  --with-shared \
 	  --disable-install-doc && \
-	ln -s /opt/jemalloc/lib/* /usr/lib/ && \
 	make -j$(nproc) > /dev/null && \
 	make install
 
@@ -57,11 +41,10 @@ RUN cd /opt/mastodon && \
 	bundle install -j$(nproc) --deployment --without development test && \
 	yarn install --pure-lockfile
 
-FROM ubuntu:18.04
+FROM ubuntu:19.04
 
 # Copy over all the langs needed for runtime
 COPY --from=build-dep /opt/ruby /opt/ruby
-COPY --from=build-dep /opt/jemalloc /opt/jemalloc
 
 # Add more PATHs to the PATH
 ENV PATH="${PATH}:/opt/ruby/bin:/opt/mastodon/bin"
@@ -71,7 +54,6 @@ ARG UID=991
 ARG GID=991
 RUN apt update && \
 	echo "Etc/UTC" > /etc/localtime && \
-	ln -s /opt/jemalloc/lib/* /usr/lib/ && \
 	apt install -y whois wget && \
 	addgroup --gid $GID mastodon && \
 	useradd -m -u $UID -g $GID -d /opt/mastodon mastodon && \
@@ -80,9 +62,9 @@ RUN apt update && \
 # Install mastodon runtime deps
 RUN wget -O - https://deb.nodesource.com/setup_8.x | bash - && \
 		apt -y --no-install-recommends install \
-	  libssl1.1 libpq5 imagemagick ffmpeg nodejs npm \
-	  libicu60 libprotobuf10 libidn11 libyaml-0-2 gcc \
-	  file ca-certificates tzdata libreadline7 && \
+	  libssl1.1 libpq5 imagemagick ffmpeg nodejs npm libjemalloc-dev \
+	  libicu63 libprotobuf17 libidn11 libyaml-0-2 gcc \
+	  file ca-certificates tzdata libreadline8 && \
 	ln -s /opt/mastodon /mastodon && \
 	npm install -g yarn && \
 	gem install bundler && \

@@ -26,7 +26,7 @@ describe Api::V1::StreamingController do
   context 'with streaming api on different host' do
     before(:each) do
       Rails.configuration.x.streaming_api_base_url = 'wss://streaming-' + Rails.configuration.x.web_domain
-      @streaming_host = URI.parse(Rails.configuration.x.streaming_api_base_url).host
+      @streaming_host = Rails.configuration.x.https ? 'https://' : 'http://' + Rails.configuration.x.web_domain
     end
 
     describe 'GET #index' do
